@@ -1,0 +1,19 @@
+# Archivos compilados de Java y Maven
+target/
+*.class
+
+# Archivos de configuración de IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+
+# Archivos de Python y entornos virtuales
+__pycache__/
+*.pyc
+venv/
+env/
+.env
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
