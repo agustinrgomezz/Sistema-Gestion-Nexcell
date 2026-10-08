@@ -4,7 +4,7 @@ Sistema integral de escritorio para la gestión de inventario, ventas y administ
 
 El ecosistema está dividido en una arquitectura de microservicios, separando la interfaz gráfica y persistencia relacional del procesamiento de lenguaje natural.
 
-## 🛠️ Tecnologías y Arquitectura
+##  Tecnologías y Arquitectura
 
 *   **Frontend y Core Backend:** Java (Swing)
 *   **Persistencia y ORM:** JPA / Hibernate
