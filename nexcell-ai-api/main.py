@@ -1,27 +1,15 @@
-from agente import AgenteNexcell
+import logging
+from fastapi import FastAPI
+from dotenv import load_dotenv
 
-def iniciar_chat():
-    print("Iniciando Sistema de Asistencia Nexcell...")
-    agente = AgenteNexcell()
-    
-    print("\n" + "="*50)
-    print("NexcellBot: ¡Hola! Soy el asistente virtual de Nexcell.")
-    print("NexcellBot: ¿En qué te puedo ayudar hoy? (Escribí 'salir' para terminar)")
-    print("="*50 + "\n")
-    
-    while True:
-        usuario_input = input("Vos: ")
-        
-        if usuario_input.lower() in ['salir', 'exit', 'quit']:
-            print("\nNexcellBot: ¡Gracias por visitar Nexcell! Hasta luego.")
-            break
-            
-        if not usuario_input.strip():
-            continue
-            
-        print("Pensando...")
-        respuesta = agente.procesar_mensaje(usuario_input)
-        print(f"\nNexcellBot: {respuesta}\n")
+load_dotenv()
 
-if __name__ == "__main__":
-    iniciar_chat()
+from api.rutas import rutas_chat
+
+# Configuración global de logs
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+app = FastAPI(title="Nexcell AI API", description="Microservicio de IA para gestión de inventario")
+
+# rutas modularizadas
+app.include_router(rutas_chat)

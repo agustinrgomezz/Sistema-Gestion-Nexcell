@@ -1,23 +1,22 @@
 import os
 import mysql.connector
 from openai import OpenAI
-from dotenv import load_dotenv
-
-load_dotenv()
+from typing import List, Dict
 
 class AgenteNexcell:
-    def __init__(self):
+    def __init__(self) -> None:
         self.cliente = OpenAI(
             api_key=os.getenv("GROQ_API_KEY"),
             base_url="https://api.groq.com/openai/v1"
         )
-        self.modelo = "qwen/qwen3.8-27b"
-        self.historial = []
+        self.modelo: str = "qwen/qwen3.8-27b"
+        # Tipado estricto: Una lista que contiene diccionarios con strings
+        self.historial: List[Dict[str, str]] = []
         self._inicializar_contexto()
 
-    def _obtener_inventario_db(self):
+    def _obtener_inventario_db(self) -> str:
+        """Se conecta a MySQL y devuelve el inventario formateado en texto."""
         try:
-            # Conexión a tu MySQL local
             conexion = mysql.connector.connect(
                 host=os.getenv("DB_HOST", "localhost"),
                 user=os.getenv("DB_USER", "root"),
@@ -27,13 +26,10 @@ class AgenteNexcell:
             )
             cursor = conexion.cursor(dictionary=True)
             
-            # ADAPTÁ ESTA CONSULTA al nombre real de tus tablas en Nexcell
             cursor.execute("SELECT marca, nombre, precio, stock FROM productos WHERE stock > 0 AND estado = 1")
             productos = cursor.fetchall()
-            
             conexion.close()
             
-            #Ahora armamos un texto para pasarselo a la IA y que lo pueda entender
             if not productos:
                 return "Actualmente no hay stock disponible."
                 
@@ -47,11 +43,9 @@ class AgenteNexcell:
             print(f"Advertencia: No se pudo conectar a la BD ({e}). Usando modo sin stock.")
             return "El sistema de inventario está fuera de línea."
 
-    def _inicializar_contexto(self):
-        # 1. Buscamos el stock real en MySQL
+    def _inicializar_contexto(self) -> None:
+        """Inyecta el inventario en el system prompt."""
         inventario_actual = self._obtener_inventario_db()
-        
-        # 2. Se lo inyectamos al System Prompt
         prompt_sistema = (
             "Eres el asistente virtual técnico de Nexcell, un e-commerce de celulares. "
             "Tu tarea es ayudar a los clientes basándote ÚNICAMENTE en el siguiente inventario real:\n\n"
@@ -61,12 +55,11 @@ class AgenteNexcell:
         )
         self.historial.append({"role": "system", "content": prompt_sistema})
 
-    def procesar_mensaje(self, mensaje_usuario):
-        # 1. Agregamos lo que dice el usuario al historial
+    def procesar_mensaje(self, mensaje_usuario: str) -> str:
+        """Procesa el mensaje del usuario y devuelve la respuesta del LLM."""
         self.historial.append({"role": "user", "content": mensaje_usuario})
 
         try:
-            # 2. Hacemos la llamada a la API enviando TODO el historial para mantener el contexto
             respuesta = self.cliente.chat.completions.create(
                 model=self.modelo,
                 messages=self.historial,
@@ -75,11 +68,9 @@ class AgenteNexcell:
             )
             
             mensaje_ia = respuesta.choices[0].message.content
-            
-            # 3. Guardamos la respuesta del agente para que la recuerde en el próximo turno
             self.historial.append({"role": "assistant", "content": mensaje_ia})
             
-            return mensaje_ia
+            return str(mensaje_ia)
 
         except Exception as e:
             return f"Error en el servidor de Nexcell: {e}"
