@@ -5,8 +5,8 @@ PROJECT EXPORT FOR LLMs
 PROJECT INFORMATION:
 --------------------------------------------------
 Project Name: nexcell-ai-api
-Generated On: 2026-10-12 00:54:05 (America/Buenos_Aires / GMT-03:00)
-Total Files Processed: 5925
+Generated On: 2026-10-14 19:07:16 (America/Buenos_Aires / GMT-03:00)
+Total Files Processed: 5932
 Export Tool: Easy Whole Project to Single Text File for LLMs v1.1.0
 Tool Author: Jota / José Guilherme Pandolfi
 
@@ -25,19 +25,26 @@ PROJECT STRUCTURE
 ├── 📁 __pycache__/
 │   ├── 📄 agente.cpython-314.pyc (4.44 KB)
 │   ├── 📄 api.cpython-314.pyc (2.14 KB)
+│   ├── 📄 main.cpython-311.pyc (726 B)
 │   └── 📄 main.cpython-314.pyc (717 B)
 ├── 📁 api/
 │   ├── 📁 __pycache__/
+│   │   ├── 📄 rutas.cpython-311.pyc (1.52 KB)
 │   │   └── 📄 rutas.cpython-314.pyc (1.59 KB)
 │   └── 📄 rutas.py (918 B)
 ├── 📁 core/
 │   ├── 📁 __pycache__/
+│   │   ├── 📄 modelos.cpython-311.pyc (701 B)
 │   │   └── 📄 modelos.cpython-314.pyc (1.07 KB)
 │   └── 📄 modelos.py (137 B)
 ├── 📁 servicios/
 │   ├── 📁 __pycache__/
-│   │   └── 📄 agente_llm.cpython-314.pyc (5.33 KB)
-│   └── 📄 agente_llm.py (3.25 KB)
+│   │   ├── 📄 agente_llm.cpython-311.pyc (4.01 KB)
+│   │   ├── 📄 agente_llm.cpython-314.pyc (5.33 KB)
+│   │   └── 📄 herramientas_db.cpython-311.pyc (2.62 KB)
+│   ├── 📄 agente_llm.py (3.17 KB)
+│   ├── 📄 herramientas_db.py (2 KB)
+│   └── 📄 servicios.py (1.27 KB)
 ├── 📁 venv/
 │   ├── 📁 Include/
 │   ├── 📁 Lib/
@@ -6503,16 +6510,16 @@ PROJECT STRUCTURE
 ================================================================================
 PROJECT STATISTICS
 ================================================================================
-Total Files: 5925
+Total Files: 5932
 Total Directories: 552
-Text Files: 2866
-Binary Files: 3059
-Total Size: 105.46 MB
+Text Files: 2868
+Binary Files: 3064
+Total Size: 105.48 MB
 
 FILE TYPES DISTRIBUTION:
 ------------------------------
-.pyc            : 2815
-.py             : 2813
+.pyc            : 2820
+.py             : 2815
 no extension    : 144
 .typed          : 48
 .txt            : 29
@@ -6545,12 +6552,14 @@ BINARY/EXCLUDED FILES (not included in text content)
 ================================================================================
 - __pycache__/agente.cpython-314.pyc
 - __pycache__/api.cpython-314.pyc
+- __pycache__/main.cpython-311.pyc
 - __pycache__/main.cpython-314.pyc
 
 
 ================================================================================
 BINARY/EXCLUDED FILES (not included in text content)
 ================================================================================
+- api/__pycache__/rutas.cpython-311.pyc
 - api/__pycache__/rutas.cpython-314.pyc
 
 
@@ -6603,6 +6612,7 @@ async def chatear_con_bot(peticion: PeticionChat):
 ================================================================================
 BINARY/EXCLUDED FILES (not included in text content)
 ================================================================================
+- core/__pycache__/modelos.cpython-311.pyc
 - core/__pycache__/modelos.cpython-314.pyc
 
 
@@ -6638,7 +6648,9 @@ class RespuestaChat(BaseModel):
 ================================================================================
 BINARY/EXCLUDED FILES (not included in text content)
 ================================================================================
+- servicios/__pycache__/agente_llm.cpython-311.pyc
 - servicios/__pycache__/agente_llm.cpython-314.pyc
+- servicios/__pycache__/herramientas_db.cpython-311.pyc
 
 
 ================================================================================
@@ -6647,23 +6659,25 @@ FILE: servicios/agente_llm.py
 
 FILE INFORMATION:
 ----------------------------------------
-Size: 3.25 KB
+Size: 3.17 KB
 Extension: .py
 Language: python
 Location: servicios/agente_llm.py
 Relative Path: servicios
 Created: 2026-10-11 23:41:34 (America/Buenos_Aires / GMT-03:00)
-Modified: 2026-10-11 23:55:05 (America/Buenos_Aires / GMT-03:00)
-MD5: 06ecbed63eb099e6611c77136babf7ef
-SHA256: 24f989620d97ad5f4f163fcefd6b2cd37bb50c2b906ed1c89c09ceb912cc936c
-Encoding: ASCII
+Modified: 2026-10-14 19:07:10 (America/Buenos_Aires / GMT-03:00)
+MD5: 3ca980b3a122fb02e6ba498e18a44feb
+SHA256: 91a085bb45aeb9ff922381e2768cdac2bc30a0e092859cd99318b9abe1708c97
+Encoding: UTF-8
 
 FILE CONTENT:
 ----------------------------------------
 import os
-import mysql.connector
+import json
 from openai import OpenAI
-from typing import List, Dict
+from typing import List, Dict, Any
+
+from servicios.herramientas_db import mis_herramientas, ejecutar_consulta_disponibilidad
 
 class AgenteNexcell:
     def __init__(self) -> None:
@@ -6671,71 +6685,197 @@ class AgenteNexcell:
             api_key=os.getenv("GROQ_API_KEY"),
             base_url="https://api.groq.com/openai/v1"
         )
-        self.modelo: str = "qwen/qwen3.8-27b"
-        # Tipado estricto: Una lista que contiene diccionarios con strings
-        self.historial: List[Dict[str, str]] = []
+        self.modelo: str = "openai/gpt-oss-120b"
+        self.historial: List[Dict[str, Any]] = []
         self._inicializar_contexto()
 
-    def _obtener_inventario_db(self) -> str:
-        """Se conecta a MySQL y devuelve el inventario formateado en texto."""
-        try:
-            conexion = mysql.connector.connect(
-                host=os.getenv("DB_HOST", "localhost"),
-                user=os.getenv("DB_USER", "root"),
-                password=os.getenv("DB_PASS", ""),
-                database=os.getenv("DB_NAME", "nexcell_db"),
-                port=os.getenv("DB_PORT", "3307")
-            )
-            cursor = conexion.cursor(dictionary=True)
-            
-            cursor.execute("SELECT marca, nombre, precio, stock FROM productos WHERE stock > 0 AND estado = 1")
-            productos = cursor.fetchall()
-            conexion.close()
-            
-            if not productos:
-                return "Actualmente no hay stock disponible."
-                
-            texto_inventario = "Inventario actual disponible:\n"
-            for p in productos:
-                texto_inventario += f"- {p['marca']} {p['nombre']}: ${p['precio']} (Stock: {p['stock']})\n"
-                
-            return texto_inventario
-            
-        except Exception as e:
-            print(f"Advertencia: No se pudo conectar a la BD ({e}). Usando modo sin stock.")
-            return "El sistema de inventario está fuera de línea."
-
     def _inicializar_contexto(self) -> None:
-        """Inyecta el inventario en el system prompt."""
-        inventario_actual = self._obtener_inventario_db()
         prompt_sistema = (
             "Eres el asistente virtual técnico de Nexcell, un e-commerce de celulares. "
-            "Tu tarea es ayudar a los clientes basándote ÚNICAMENTE en el siguiente inventario real:\n\n"
-            f"{inventario_actual}\n\n"
-            "Si un usuario pregunta por un modelo que no está en esta lista, decile amablemente que no hay stock. "
-            "Responde de forma clara, profesional y concisa (máximo 3 párrafos cortos)."
+            "Tu tarea es ayudar a los clientes con el stock. "
+            "IMPORTANTE: NO tienes el inventario en tu memoria. Para saber precios o stock, "
+            "DEBES usar SIEMPRE la herramienta 'consultar_disponibilidad_db'. "
+            "Nunca inventes precios ni modelos."
         )
         self.historial.append({"role": "system", "content": prompt_sistema})
 
     def procesar_mensaje(self, mensaje_usuario: str) -> str:
-        """Procesa el mensaje del usuario y devuelve la respuesta del LLM."""
         self.historial.append({"role": "user", "content": mensaje_usuario})
 
         try:
             respuesta = self.cliente.chat.completions.create(
                 model=self.modelo,
                 messages=self.historial,
+                tools=mis_herramientas,
+                tool_choice="auto",
                 temperature=0.6,
                 max_tokens=300
             )
             
-            mensaje_ia = respuesta.choices[0].message.content
-            self.historial.append({"role": "assistant", "content": mensaje_ia})
-            
-            return str(mensaje_ia)
+            mensaje_ia = respuesta.choices[0].message
+            self.historial.append(mensaje_ia)
+
+            if mensaje_ia.tool_calls:
+                for tool_call in mensaje_ia.tool_calls:
+                    if tool_call.function.name == "consultar_disponibilidad_db":
+                        argumentos = json.loads(tool_call.function.arguments)
+                        modelo_buscado = argumentos.get("modelo_producto")
+                        
+                        print(f"La IA delegó la búsqueda a Python: {modelo_buscado}")
+                        
+                        # Ejecutamos la función IMPORTADA
+                        resultado_bd = ejecutar_consulta_disponibilidad(modelo_buscado)
+                        
+                        self.historial.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "name": tool_call.function.name,
+                            "content": resultado_bd
+                        })
+                
+                respuesta_final = self.cliente.chat.completions.create(
+                    model=self.modelo,
+                    messages=self.historial,
+                    temperature=0.6,
+                    max_tokens=300
+                )
+                mensaje_final = respuesta_final.choices[0].message.content
+                self.historial.append({"role": "assistant", "content": mensaje_final})
+                return str(mensaje_final)
+                
+            else:
+                return str(mensaje_ia.content)
 
         except Exception as e:
             return f"Error en el servidor de Nexcell: {e}"
+================================================================================
+
+
+================================================================================
+FILE: servicios/herramientas_db.py
+================================================================================
+
+FILE INFORMATION:
+----------------------------------------
+Size: 2 KB
+Extension: .py
+Language: python
+Location: servicios/herramientas_db.py
+Relative Path: servicios
+Created: 2026-10-14 16:04:19 (America/Buenos_Aires / GMT-03:00)
+Modified: 2026-10-14 16:09:43 (America/Buenos_Aires / GMT-03:00)
+MD5: e4e19755d87f99527690a718d662fa87
+SHA256: 1648d87e932e795ca6957d206d18a1d9d682ff833a2e8cbb1ec14a282248f418
+Encoding: UTF-8
+
+FILE CONTENT:
+----------------------------------------
+import os
+import mysql.connector
+
+mis_herramientas = [
+    {
+        "type": "function",
+        "function": {
+            "name": "consultar_disponibilidad_db",
+            "description": "Busca en la base de datos el precio y stock disponible de un producto o modelo específico.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "modelo_producto": {
+                        "type": "string",
+                        "description": "El nombre o modelo del celular a buscar (ejemplo: 'iPhone 13', 'Samsung Galaxy')."
+                    }
+                },
+                "required": ["modelo_producto"]
+            }
+        }
+    }
+]
+
+def ejecutar_consulta_disponibilidad(modelo_producto: str) -> str:
+    """Se conecta a MySQL y busca un modelo específico."""
+    try:
+        conexion = mysql.connector.connect(
+            host=os.getenv("DB_HOST", "localhost"),
+            user=os.getenv("DB_USER", "root"),
+            password=os.getenv("DB_PASS", "Amir11022013"),
+            database=os.getenv("DB_NAME", "nexcell_db"),
+            port=int(os.getenv("DB_PORT", 3306))
+        )
+        cursor = conexion.cursor(dictionary=True)
+        
+        query = "SELECT marca, nombre, precio, stock FROM productos WHERE nombre LIKE %s AND stock > 0 AND estado = 1"
+        cursor.execute(query, (f"%{modelo_producto}%",))
+        productos = cursor.fetchall()
+        conexion.close()
+        
+        if not productos:
+            return f"No hay stock disponible para la búsqueda: {modelo_producto}."
+            
+        texto_inventario = f"Resultados para '{modelo_producto}':\n"
+        for p in productos:
+            texto_inventario += f"- {p['marca']} {p['nombre']}: ${p['precio']} (Stock: {p['stock']})\n"
+            
+        return texto_inventario
+        
+    except Exception as e:
+        print(f"Error de BD: {e}")
+        return "Error interno: No se pudo consultar la base de datos en este momento."
+================================================================================
+
+
+================================================================================
+FILE: servicios/servicios.py
+================================================================================
+
+FILE INFORMATION:
+----------------------------------------
+Size: 1.27 KB
+Extension: .py
+Language: python
+Location: servicios/servicios.py
+Relative Path: servicios
+Created: 2026-10-14 15:53:09 (America/Buenos_Aires / GMT-03:00)
+Modified: 2026-10-14 15:54:49 (America/Buenos_Aires / GMT-03:00)
+MD5: 6a73013ec531102eba961e57359b1e92
+SHA256: 9135c1a4e20a18ffcfdb7b42bc497a09cbb710e9b25e14faa3aa8d498299f472
+Encoding: UTF-8
+
+FILE CONTENT:
+----------------------------------------
+import mysql.connector
+import os
+
+def consultar_disponibilidad_db(modelo_producto: str):
+    """Busca un producto en la base de datos y devuelve su stock y precio."""
+    try:
+        conexion = mysql.connector.connect(
+            host=os.getenv("DB_HOST", "localhost"),
+            user=os.getenv("DB_USER", "root"),
+            password=os.getenv("DB_PASS", "Amir11022013"),
+            database=os.getenv("DB_NAME", "nexcell_db"),
+            port=int(os.getenv("DB_PORT", 3306))
+        )
+        cursor = conexion.cursor(dictionary=True)
+        
+        query = "SELECT nombre, precio, stock FROM nexcell_db_productos WHERE nombre LIKE %s AND stock > 0"
+        cursor.execute(query, (f"%{modelo_producto}%",))
+        resultados = cursor.fetchall()
+        
+        conexion.close()
+
+        if not resultados:
+            return f"No se encontraron unidades en stock para la búsqueda: {modelo_producto}."
+        
+        respuesta_ia = f"Resultados encontrados para '{modelo_producto}':\n"
+        for prod in resultados:
+            respuesta_ia += f"- {prod['nombre']}: Precio ${prod['precio']}, Stock: {prod['stock']} unidades.\n"
+        
+        return respuesta_ia
+
+    except Exception as e:
+        return f"Error al consultar la base de datos: {str(e)}"
 ================================================================================
 
 
