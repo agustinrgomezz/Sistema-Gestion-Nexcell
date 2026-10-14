@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  # 1. El contenedor de la Base de Datos
+  db:
+    image: mysql:8.0
+    container_name: nexcell-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASS:-""}
+      MYSQL_DATABASE: ${DB_NAME:-"nexcell_db"}
+    ports:
+      - "3308:3306"
+    volumes:
+      - nexcell_db_data:/var/lib/mysql
+
+  # 2. El contenedor del microservicio de IA
+  api:
+    build: .
+    container_name: nexcell-ia-agent
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - DB_HOST=db  
+      - DB_USER=root
+      - DB_PASS=${DB_PASS:-"Amir11022013"}
+      - DB_NAME=${DB_NAME:-"nexcell_db"}
+      - DB_PORT=3306
+    depends_on:
+      - db
+
+# Se define el volumen global para no perder datos de la BD
+volumes:
+  nexcell_db_data:
