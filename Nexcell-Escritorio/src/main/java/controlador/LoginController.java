@@ -23,12 +23,10 @@ public class LoginController {
         String user = vista.getUserField().getText();
         String pass = new String(vista.getPassField().getPassword());
 
-        // 1. Bloqueamos el botón para evitar múltiples clics y le damos feedback al usuario
         vista.getLoginButton().setEnabled(false);
         vista.getLoginButton().setText("Conectando...");
 
-        // 2. Usamos SwingWorker para aislar la consulta a la BD en un hilo secundario
-        // Esto evita el "congelamiento" (Deadlock) de la ventana principal
+
         SwingWorker<Usuario, Void> worker = new SwingWorker<Usuario, Void>() {
 
             @Override
@@ -43,13 +41,22 @@ public class LoginController {
                     Usuario usuarioAutenticado = get(); // Recibimos la respuesta de doInBackground
 
                     if (usuarioAutenticado != null) {
+                        // --- NUEVO: REGISTRO DE LOG ---
+                        utilidades.GestorLogs.registrar(utilidades.GestorLogs.Nivel.INFO, "SEGURIDAD",
+                            "El usuario '" + user + "' (" + usuarioAutenticado.getClass().getSimpleName() + ") inició sesión exitosamente.");
                         usuarioAutenticado.mostrarInterfaz(em);
                         vista.dispose();
                     } else {
+                        // --- NUEVO: REGISTRO DE LOG ---
+                        utilidades.GestorLogs.registrar(utilidades.GestorLogs.Nivel.ALERTA, "SEGURIDAD",
+                            "Intento de acceso fallido para el usuario: " + user);
                         JOptionPane.showMessageDialog(vista, "Credenciales incorrectas", "Error de Acceso", JOptionPane.ERROR_MESSAGE);
                         restaurarBoton();
                     }
                 } catch (Exception ex) {
+                    // --- NUEVO: REGISTRO DE LOG ---
+                    utilidades.GestorLogs.registrar(utilidades.GestorLogs.Nivel.ERROR, "BASE DE DATOS",
+                        "Fallo de conexión en el login: " + ex.getMessage());
                     JOptionPane.showMessageDialog(vista, "Error de conexión con la base de datos.", "Error Fatal", JOptionPane.ERROR_MESSAGE);
                     System.err.println("Error en hilo de login: " + ex.getMessage());
                     restaurarBoton();
@@ -57,7 +64,7 @@ public class LoginController {
             }
         };
 
-        worker.execute(); // ¡Disparamos el hilo secundario!
+        worker.execute();
     }
 
     private void restaurarBoton() {
@@ -84,11 +91,10 @@ public class LoginController {
             }
         } catch (Exception e) {
             System.err.println("Error al consultar la BD: " + e.getMessage());
-            throw e; // Lanzamos el error para que lo atrape el catch del SwingWorker
+            throw e;
         }
 
         return null;
     }
-
 
 }

@@ -1,0 +1,4 @@
+out/
+target/
+**/persistence.xml
+Auditoria/historial_nexcell.log

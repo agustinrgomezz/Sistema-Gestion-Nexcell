@@ -2,8 +2,15 @@ package vista;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
+import java.io.File;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 public class VendedorUI extends JFrame {
 
@@ -14,6 +21,7 @@ public class VendedorUI extends JFrame {
     private JButton btnAbrirFormularioCliente;
     private JButton btnBajaCliente;
     private JButton btnAltaCliente;
+    private JButton btnEditarCliente;
 
     // Componentes de Productos
     private JTextField buscarProductoField;
@@ -22,7 +30,6 @@ public class VendedorUI extends JFrame {
 
     // Botón general
     private JButton btnCerrarSesion;
-    private JButton btnConsultarChat;
 
     // Componentes de Ventas
     private JTable tablaVentas;
@@ -30,11 +37,13 @@ public class VendedorUI extends JFrame {
     private JTextField buscarVentaField;
     private JButton btnBuscarVenta;
 
-    // Componentes de Reportes con Fechas Desplegables
+    // Componentes de Reportes
     private JComboBox<String> comboTipoReporte;
+    private JComboBox<String> comboCategoriasReporte;
     private JComboBox<String> cbDiaInicio, cbMesInicio, cbAnioInicio;
     private JComboBox<String> cbDiaFin, cbMesFin, cbAnioFin;
     private JButton btnGenerarReporte;
+    private JButton btnExportarReporte;
     private JTable tablaReportes;
     private JLabel lblTotalReporte;
 
@@ -47,10 +56,7 @@ public class VendedorUI extends JFrame {
         setTitle("Panel de Vendedor - Nexcell");
         setMinimumSize(new Dimension(950, 550));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-
-        // ESTA LÍNEA ABRE LA VENTANA MAXIMIZADA POR DEFECTO
         setExtendedState(JFrame.MAXIMIZED_BOTH);
-
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
@@ -64,21 +70,340 @@ public class VendedorUI extends JFrame {
         JPanel panelInferior = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         panelInferior.setBorder(BorderFactory.createEmptyBorder(10, PADDING_PANEL, 20, PADDING_PANEL));
 
-        btnConsultarChat = new JButton("Consultar Asistente IA");
-        btnConsultarChat.setBackground(new Color(0, 102, 204));
-        btnConsultarChat.setForeground(Color.WHITE);
-        btnConsultarChat.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnConsultarChat.setMargin(new Insets(8, 20, 8, 20));
-
         btnCerrarSesion = new JButton("Cerrar Sesión");
         btnCerrarSesion.setForeground(new Color(224, 82, 82));
         btnCerrarSesion.setCursor(new Cursor(Cursor.HAND_CURSOR));
         btnCerrarSesion.setMargin(new Insets(8, 20, 8, 20));
-
-        panelInferior.add(btnConsultarChat);
         panelInferior.add(btnCerrarSesion);
 
         add(panelInferior, BorderLayout.SOUTH);
+
+        inicializarComportamientosVisuales();
+    }
+
+    private void inicializarComportamientosVisuales() {
+        tablaClientes.setAutoCreateRowSorter(true);
+        tablaProductos.setAutoCreateRowSorter(true);
+        tablaVentas.setAutoCreateRowSorter(true);
+        tablaReportes.setAutoCreateRowSorter(true);
+
+        configurarFiltroBusqueda(buscarClienteField, btnBuscarCliente, tablaClientes);
+        configurarFiltroBusqueda(buscarProductoField, btnBuscarProducto, tablaProductos);
+        configurarFiltroBusqueda(buscarVentaField, btnBuscarVenta, tablaVentas);
+
+        java.awt.event.MouseAdapter deseleccionador = new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (tablaClientes.rowAtPoint(e.getPoint()) == -1) {
+                    limpiarSeleccionClientes();
+                }
+            }
+        };
+        tablaClientes.addMouseListener(deseleccionador);
+        if (tablaClientes.getParent() instanceof JViewport) {
+            tablaClientes.getParent().addMouseListener(deseleccionador);
+        }
+
+        tablaClientes.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                int f = tablaClientes.getSelectedRow();
+                if (f != -1) {
+                    boolean activo = tablaClientes.getValueAt(f, 5).toString().equalsIgnoreCase("Activo");
+                    btnBajaCliente.setVisible(activo);
+                    btnAltaCliente.setVisible(!activo);
+                    btnEditarCliente.setVisible(true);
+                } else {
+                    btnBajaCliente.setVisible(false);
+                    btnAltaCliente.setVisible(false);
+                    btnEditarCliente.setVisible(false);
+                }
+            }
+        });
+    }
+
+    // EVENTOS DELEGADOS Y RENDERIZADO DE DATOS (Llamados por el Controlador)
+
+    public void alHacerDobleClicEnVenta(Consumer<Long> accion) {
+        tablaVentas.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    Long id = getIdVentaSeleccionada();
+                    if (id != null) {
+                        accion.accept(id);
+                    }
+                }
+            }
+        });
+    }
+
+    public void mostrarClientes(List<modelo.Cliente> clientes) {
+        DefaultTableModel mod = (DefaultTableModel) tablaClientes.getModel();
+        mod.setRowCount(0);
+        for (modelo.Cliente c : clientes) {
+            mod.addRow(new Object[]{
+                c.getDni(), c.getNombre(), c.getApellido(), c.getTelefono(), c.getEmail(), c.isActivo() ? "Activo" : "Inactivo"
+            });
+        }
+    }
+
+    public void actualizarEstadoClienteSeleccionado(boolean activo) {
+        int filaVista = tablaClientes.getSelectedRow();
+        if (filaVista != -1) {
+            tablaClientes.setValueAt(activo ? "Activo" : "Inactivo", filaVista, 5);
+            limpiarSeleccionClientes();
+        }
+    }
+
+    public void limpiarSeleccionClientes() {
+        tablaClientes.clearSelection();
+        btnBajaCliente.setVisible(false);
+        btnAltaCliente.setVisible(false);
+        btnEditarCliente.setVisible(false);
+    }
+
+    public void mostrarProductos(List<modelo.Producto> productos) {
+        DefaultTableModel mod = (DefaultTableModel) tablaProductos.getModel();
+        mod.setRowCount(0);
+        for (modelo.Producto p : productos) {
+            mod.addRow(new Object[]{
+                p.getId(), p.getCategoria(), p.getNombre(), p.getStock(), String.format("$%.2f", p.getPrecio())
+            });
+        }
+    }
+
+    public void mostrarVentas(List<modelo.Venta> ventas) {
+        DefaultTableModel mod = (DefaultTableModel) tablaVentas.getModel();
+        mod.setRowCount(0);
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+        for (modelo.Venta v : ventas) {
+            int cant = v.getDetalles().size();
+            String desc = cant == 1 ? v.getDetalles().get(0).getProducto().getNombre() : cant + " art. (Varios)";
+            mod.addRow(new Object[]{
+                v.getId(), v.getFecha().format(fmt), v.getCliente().getDni(), desc, String.format("$%.2f", v.getTotal())
+            });
+        }
+    }
+
+    // --- RENDERIZADO DE REPORTES EN LA VISTA ---
+
+    public void mostrarReporteResumenDiario(List<Object[]> resultados) {
+        DefaultTableModel modelo = (DefaultTableModel) tablaReportes.getModel();
+        modelo.setColumnIdentifiers(new String[]{"Fecha de Operación", "Tickets Emitidos", "Monto Facturado"});
+        modelo.setRowCount(0);
+
+        double granTotal = 0;
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        for (Object[] fila : resultados) {
+            java.sql.Date fechaSql = (java.sql.Date) fila[0];
+            String fechaStr = fechaSql.toLocalDate().format(fmt);
+            int tickets = ((Number) fila[1]).intValue();
+            double total = ((Number) fila[2]).doubleValue();
+
+            granTotal += total;
+            modelo.addRow(new Object[]{fechaStr, tickets + " ventas", String.format("$%.2f", total)});
+        }
+        lblTotalReporte.setText(String.format("Facturación Periodo: $%.2f", granTotal));
+    }
+
+    public void mostrarReporteTopProductos(List<Object[]> resultados) {
+        DefaultTableModel modelo = (DefaultTableModel) tablaReportes.getModel();
+        modelo.setColumnIdentifiers(new String[]{"Producto (Modelo)", "Categoría", "Unidades Vendidas", "Ingreso Generado"});
+        modelo.setRowCount(0);
+
+        double granTotal = 0;
+        for (Object[] fila : resultados) {
+            String producto = (String) fila[0];
+            String categoria = (String) fila[1];
+            int unidades = ((Number) fila[2]).intValue();
+            double total = ((Number) fila[3]).doubleValue();
+
+            granTotal += total;
+            modelo.addRow(new Object[]{producto, categoria, unidades + " u.", String.format("$%.2f", total)});
+        }
+        lblTotalReporte.setText(String.format("Ingreso por estos productos: $%.2f", granTotal));
+    }
+
+    public void mostrarReporteRendimientoCategoria(List<Object[]> resultados, String categoria) {
+        DefaultTableModel modelo = (DefaultTableModel) tablaReportes.getModel();
+        modelo.setColumnIdentifiers(new String[]{"Producto (" + categoria + ")", "Unidades Vendidas", "Ingresos Generados"});
+        modelo.setRowCount(0);
+
+        double granTotal = 0;
+        for (Object[] fila : resultados) {
+            double ingresos = ((Number) fila[2]).doubleValue();
+            granTotal += ingresos;
+            modelo.addRow(new Object[]{fila[0], fila[1], String.format("$%.2f", ingresos)});
+        }
+        lblTotalReporte.setText(String.format("Total en Categoría: $%.2f", granTotal));
+    }
+
+    public void mostrarReporteMejoresClientes(List<Object[]> resultados) {
+        DefaultTableModel modelo = (DefaultTableModel) tablaReportes.getModel();
+        modelo.setColumnIdentifiers(new String[]{"DNI Cliente", "Nombre Completo", "Compras", "Total Gastado"});
+        modelo.setRowCount(0);
+
+        for (Object[] fila : resultados) {
+            String nombreCompleto = fila[1] + " " + fila[2];
+            double gastado = ((Number) fila[4]).doubleValue();
+            modelo.addRow(new Object[]{fila[0], nombreCompleto, fila[3], String.format("$%.2f", gastado)});
+        }
+        lblTotalReporte.setText("Ranking de Fidelización (Clientes del Vendedor)");
+    }
+
+    public List<String[]> obtenerDatosTablaReportes() {
+        List<String[]> datos = new ArrayList<>();
+        int cols = tablaReportes.getColumnCount();
+        if (tablaReportes.getRowCount() == 0) return datos;
+
+        String[] headers = new String[cols];
+        for (int i = 0; i < cols; i++) {
+            headers[i] = tablaReportes.getColumnName(i);
+        }
+        datos.add(headers);
+
+        for (int i = 0; i < tablaReportes.getRowCount(); i++) {
+            String[] fila = new String[cols];
+            for (int j = 0; j < cols; j++) {
+                Object val = tablaReportes.getValueAt(i, j);
+                fila[j] = val != null ? val.toString() : "";
+            }
+            datos.add(fila);
+        }
+        return datos;
+    }
+
+    // --- SUB-VENTANA DE DETALLE DE VENTA ---
+
+    public void mostrarDialogoDetalleVenta(modelo.Venta venta, Consumer<modelo.Venta> accionDescargarPdf) {
+        JDialog dialogo = new JDialog(this, "Detalle de Venta #" + venta.getId(), true);
+        dialogo.setSize(550, 450);
+        dialogo.setLocationRelativeTo(this);
+        dialogo.setLayout(new BorderLayout(15, 15));
+
+        JPanel panelInfo = new JPanel(new GridLayout(4, 1, 5, 5));
+        panelInfo.setBorder(BorderFactory.createEmptyBorder(15, 15, 5, 15));
+        panelInfo.add(new JLabel("Cliente: " + venta.getCliente().getNombre() + " " + venta.getCliente().getApellido() + " (DNI: " + venta.getCliente().getDni() + ")"));
+        panelInfo.add(new JLabel("Atendido por: " + venta.getVendedor().getUsername()));
+        panelInfo.add(new JLabel("Fecha de operación: " + venta.getFecha().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))));
+
+        dialogo.add(panelInfo, BorderLayout.NORTH);
+
+        String[] columnas = {"Producto", "Cantidad", "Subtotal"};
+        DefaultTableModel modDetalle = new DefaultTableModel(columnas, 0) {
+            @Override public boolean isCellEditable(int row, int col) { return false; }
+        };
+
+        for (modelo.DetalleVenta dv : venta.getDetalles()) {
+            modDetalle.addRow(new Object[]{
+                dv.getProducto().getNombre(),
+                dv.getCantidad() + " u.",
+                String.format("$%.2f", dv.getSubtotal())
+            });
+        }
+
+        JTable tablaDetalles = new JTable(modDetalle);
+        tablaDetalles.setRowHeight(30);
+        JScrollPane scroll = new JScrollPane(tablaDetalles);
+        scroll.setBorder(BorderFactory.createEmptyBorder(0, 15, 0, 15));
+        dialogo.add(scroll, BorderLayout.CENTER);
+
+        JPanel panelInferior = new JPanel(new BorderLayout());
+        panelInferior.setBorder(BorderFactory.createEmptyBorder(10, 15, 15, 15));
+
+        JLabel lblTotal = new JLabel("TOTAL ABONADO: $" + String.format("%.2f", venta.getTotal()));
+        lblTotal.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        lblTotal.setForeground(new Color(40, 167, 69));
+
+        JButton btnPdf = new JButton("Descargar Comprobante PDF");
+        btnPdf.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnPdf.addActionListener(e -> accionDescargarPdf.accept(venta));
+
+        panelInferior.add(lblTotal, BorderLayout.WEST);
+        panelInferior.add(btnPdf, BorderLayout.EAST);
+        dialogo.add(panelInferior, BorderLayout.SOUTH);
+
+        dialogo.setVisible(true);
+    }
+
+    // --- UTILIDADES DE INTERACCIÓN CON EL USUARIO (Sin exponer constantes Swing) ---
+
+    public void mostrarExito(String mensaje, String titulo) {
+        JOptionPane.showMessageDialog(this, mensaje, titulo, JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    public void mostrarAlerta(String mensaje, String titulo) {
+        JOptionPane.showMessageDialog(this, mensaje, titulo, JOptionPane.WARNING_MESSAGE);
+    }
+
+    public void mostrarError(String mensaje, String titulo) {
+        JOptionPane.showMessageDialog(this, mensaje, titulo, JOptionPane.ERROR_MESSAGE);
+    }
+
+    public boolean confirmarAccion(String mensaje, String titulo) {
+        return JOptionPane.showConfirmDialog(this, mensaje, titulo, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
+    }
+
+    public File seleccionarArchivoCSVGuardar() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Guardar Reporte Excel (CSV)");
+        fileChooser.setSelectedFile(new File("Nexcell_Reporte_" + System.currentTimeMillis() + ".csv"));
+        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            return fileChooser.getSelectedFile();
+        }
+        return null;
+    }
+
+    public String getDniClienteSeleccionado() {
+        int fila = tablaClientes.getSelectedRow();
+        return fila != -1 ? tablaClientes.getValueAt(fila, 0).toString() : null;
+    }
+
+    public Long getIdVentaSeleccionada() {
+        int fila = tablaVentas.getSelectedRow();
+        return fila != -1 ? (Long) tablaVentas.getValueAt(fila, 0) : null;
+    }
+
+    public String getFechaInicioReporteStr() {
+        return cbDiaInicio.getSelectedItem() + "/" + cbMesInicio.getSelectedItem() + "/" + cbAnioInicio.getSelectedItem();
+    }
+
+    public String getFechaFinReporteStr() {
+        return cbDiaFin.getSelectedItem() + "/" + cbMesFin.getSelectedItem() + "/" + cbAnioFin.getSelectedItem();
+    }
+
+    public int getIndiceTipoReporte() {
+        return comboTipoReporte.getSelectedIndex();
+    }
+
+    public String getCategoriaReporteSeleccionada() {
+        return comboCategoriasReporte.getSelectedItem().toString();
+    }
+
+    // =========================================================================
+    // CONSTRUCCIÓN DE PANELES INTERNOS Y FILTROS VISUALES
+    // =========================================================================
+
+    private void configurarFiltroBusqueda(JTextField campo, JButton boton, JTable tabla) {
+        Runnable accionFiltrar = () -> {
+            String texto = campo.getText().trim();
+            TableRowSorter<?> sorter = (TableRowSorter<?>) tabla.getRowSorter();
+            if (sorter != null) {
+                if (texto.isEmpty()) {
+                    sorter.setRowFilter(null);
+                } else {
+                    sorter.setRowFilter(RowFilter.regexFilter("(?i)" + Pattern.quote(texto)));
+                }
+            }
+        };
+        boton.addActionListener(e -> accionFiltrar.run());
+        campo.addActionListener(e -> accionFiltrar.run());
+        campo.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { accionFiltrar.run(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { accionFiltrar.run(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { accionFiltrar.run(); }
+        });
     }
 
     private JPanel crearPanelClientes() {
@@ -90,10 +415,13 @@ public class VendedorUI extends JFrame {
         btnAbrirFormularioCliente = crearBotonWeb("Nuevo Cliente");
         btnBajaCliente = crearBotonWeb("Baja Lógica");
         btnAltaCliente = crearBotonWeb("Reactivar");
+        btnEditarCliente = crearBotonWeb("Editar");
+
         btnBajaCliente.setVisible(false);
         btnAltaCliente.setVisible(false);
+        btnEditarCliente.setVisible(false);
 
-        JPanel panelAcciones = crearBarraAcciones(btnBajaCliente, btnAltaCliente, btnAbrirFormularioCliente);
+        JPanel panelAcciones = crearBarraAcciones(btnBajaCliente, btnAltaCliente, btnEditarCliente, btnAbrirFormularioCliente);
         String[] columnas = {"DNI", "Nombre", "Apellido", "Teléfono", "Email", "Estado"};
         tablaClientes = new JTable(new DefaultTableModel(new Object[][]{}, columnas) {
             @Override public boolean isCellEditable(int row, int col) { return false; }
@@ -152,11 +480,26 @@ public class VendedorUI extends JFrame {
         JPanel panel = crearPanelBase();
 
         comboTipoReporte = new JComboBox<>(new String[]{
-            "Resumen de ventas",
-            "Productos mas vendidos"
+            "Resumen Diario / Arqueo",
+            "Top Productos Vendidos",
+            "Rendimiento por Categoría",
+            "Mis Mejores Clientes"
         });
 
-        // Configuración de arrays para los ComboBox de fechas
+        String[] categorias = {"Smartphone", "Accesorio", "Auricular", "Parlante", "SmartWatch"};
+        comboCategoriasReporte = new JComboBox<>(categorias);
+        comboCategoriasReporte.setVisible(false);
+
+        comboTipoReporte.addActionListener(e -> {
+            String seleccionado = comboTipoReporte.getSelectedItem().toString();
+            comboCategoriasReporte.setVisible(seleccionado.equals("Rendimiento por Categoría"));
+
+            boolean esRango = !seleccionado.equals("Resumen Diario / Arqueo");
+            cbDiaFin.setEnabled(esRango);
+            cbMesFin.setEnabled(esRango);
+            cbAnioFin.setEnabled(esRango);
+        });
+
         String[] dias = new String[31];
         for (int i = 0; i < 31; i++) dias[i] = String.format("%02d", i + 1);
 
@@ -167,7 +510,6 @@ public class VendedorUI extends JFrame {
         int anioActual = LocalDate.now().getYear();
         for (int i = 0; i < 5; i++) anios[i] = String.valueOf(anioActual - i);
 
-        // Inicializar combos
         cbDiaInicio = new JComboBox<>(dias); cbMesInicio = new JComboBox<>(meses); cbAnioInicio = new JComboBox<>(anios);
         cbDiaFin = new JComboBox<>(dias); cbMesFin = new JComboBox<>(meses); cbAnioFin = new JComboBox<>(anios);
 
@@ -182,17 +524,23 @@ public class VendedorUI extends JFrame {
         cbMesFin.setSelectedIndex(hoy.getMonthValue() - 1);
         cbAnioFin.setSelectedItem(String.valueOf(hoy.getYear()));
 
-        btnGenerarReporte = crearBotonWeb("Generar Reporte");
+        cbDiaFin.setEnabled(false);
+        cbMesFin.setEnabled(false);
+        cbAnioFin.setEnabled(false);
 
-        // Construir barra superior de filtros
+        btnGenerarReporte = crearBotonWeb("Generar Reporte");
+        btnExportarReporte = crearBotonWeb("Exportar a Excel");
+
         JPanel panelFiltros = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         panelFiltros.add(new JLabel("Métrica:"));
         panelFiltros.add(comboTipoReporte);
+        panelFiltros.add(comboCategoriasReporte);
         panelFiltros.add(new JLabel("Desde:"));
         panelFiltros.add(crearAgrupacionFecha(cbDiaInicio, cbMesInicio, cbAnioInicio));
         panelFiltros.add(new JLabel("Hasta:"));
         panelFiltros.add(crearAgrupacionFecha(cbDiaFin, cbMesFin, cbAnioFin));
         panelFiltros.add(btnGenerarReporte);
+        panelFiltros.add(btnExportarReporte);
 
         tablaReportes = new JTable(new DefaultTableModel(new Object[][]{}, new String[]{"-"})) {
             @Override public boolean isCellEditable(int row, int col) { return false; }
@@ -217,11 +565,7 @@ public class VendedorUI extends JFrame {
 
     private JPanel crearAgrupacionFecha(JComboBox<String> dia, JComboBox<String> mes, JComboBox<String> anio) {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
-        p.add(dia);
-        p.add(new JLabel("/"));
-        p.add(mes);
-        p.add(new JLabel("/"));
-        p.add(anio);
+        p.add(dia); p.add(new JLabel("/")); p.add(mes); p.add(new JLabel("/")); p.add(anio);
         return p;
     }
 
@@ -279,32 +623,13 @@ public class VendedorUI extends JFrame {
         return null;
     }
 
-    // Getters habituales
-    public JTextField getBuscarClienteField() { return buscarClienteField; }
-    public JButton getBtnBuscarCliente() { return btnBuscarCliente; }
-    public JTable getTablaClientes() { return tablaClientes; }
+    // Getters de botones para vincular acciones
     public JButton getBtnAbrirFormularioCliente() { return btnAbrirFormularioCliente; }
     public JButton getBtnBajaCliente() { return btnBajaCliente; }
     public JButton getBtnAltaCliente() { return btnAltaCliente; }
-    public JTextField getBuscarProductoField() { return buscarProductoField; }
-    public JButton getBtnBuscarProducto() { return btnBuscarProducto; }
-    public JTable getTablaProductos() { return tablaProductos; }
+    public JButton getBtnEditarCliente() { return btnEditarCliente; }
     public JButton getBtnCerrarSesion() { return btnCerrarSesion; }
     public JButton getBtnAbrirFormularioVenta() { return btnAbrirFormularioVenta; }
-    public JTable getTablaVentas() { return tablaVentas; }
-    public JTextField getBuscarVentaField() { return buscarVentaField; }
-    public JButton getBtnBuscarVenta() { return btnBuscarVenta; }
-
-    // Getters de Reportes
-    public JComboBox<String> getComboTipoReporte() { return comboTipoReporte; }
-    public JComboBox<String> getCbDiaInicio() { return cbDiaInicio; }
-    public JComboBox<String> getCbMesInicio() { return cbMesInicio; }
-    public JComboBox<String> getCbAnioInicio() { return cbAnioInicio; }
-    public JComboBox<String> getCbDiaFin() { return cbDiaFin; }
-    public JComboBox<String> getCbMesFin() { return cbMesFin; }
-    public JComboBox<String> getCbAnioFin() { return cbAnioFin; }
     public JButton getBtnGenerarReporte() { return btnGenerarReporte; }
-    public JTable getTablaReportes() { return tablaReportes; }
-    public JLabel getLblTotalReporte() { return lblTotalReporte; }
-    public JButton getBtnConsultarChat() { return btnConsultarChat; }
+    public JButton getBtnExportarReporte() { return btnExportarReporte; }
 }

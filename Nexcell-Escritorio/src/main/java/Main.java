@@ -8,6 +8,8 @@ import javax.swing.*;
 
 public class Main {
     public static void main(String[] args) {
+        // Fuerza a Java a usar IPv4 para evitar conflictos de red con Docker/Windows
+        System.setProperty("java.net.preferIPv4Stack", "true");
 
         // 1. Inicializamos la conexión a la base de datos (NexcellPU debe coincidir con el XML)
         EntityManagerFactory emf = Persistence.createEntityManagerFactory("NexcellPU");

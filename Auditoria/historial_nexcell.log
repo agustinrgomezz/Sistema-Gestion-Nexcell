@@ -1,0 +1,9 @@
+[22/10/2026 12:17:40] [INFO] [SEGURIDAD] - El usuario 'pedro' (Vendedor) inició sesión exitosamente.
+[22/10/2026 12:18:00] [INFO] [VENTAS] - El Vendedor 'pedro' registró exitosamente una venta por $2.1E7 al DNI: 42111333
+[22/10/2026 12:18:08] [ALERTA] [N8N] - Timeout al notificar la venta a n8n (DNI 42111333). La venta se guardó igual en la base de datos.
+[22/10/2026 14:39:03] [INFO] [SEGURIDAD] - El usuario 'pedro' (Vendedor) inició sesión exitosamente.
+[22/10/2026 14:44:33] [INFO] [SEGURIDAD] - El usuario 'pedro' (Vendedor) inició sesión exitosamente.
+[22/10/2026 14:44:44] [INFO] [VENTAS] - El Vendedor 'pedro' registró exitosamente una venta por $4200000.0 al DNI: 42111333
+[22/10/2026 14:44:52] [ALERTA] [N8N] - Timeout al notificar la venta a n8n (DNI 42111333). La venta se guardó igual en la base de datos.
+[22/10/2026 14:48:28] [INFO] [SEGURIDAD] - El usuario 'pedro' (Vendedor) inició sesión exitosamente.
+[22/10/2026 14:48:40] [INFO] [VENTAS] - El Vendedor 'pedro' registró exitosamente una venta por $270000.0 al DNI: 42111333
